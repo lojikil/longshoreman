@@ -1,0 +1,3 @@
+(library
+    (name longshoreman)
+    (libraries Unix Str))
