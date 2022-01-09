@@ -97,6 +97,42 @@ let make_from_image = (~platform:string="", ~tag:string="", ~digest:string="",~n
 let next = (src:string, offset:int):lex_t => {
 
 }
+/*
+ * I probably should use an expect-style system here to
+ * keep things a bit cleaner; at the tope level, we can
+ * expect either a comment or a symbol to start, and then
+ * depending on the type of symbol, we can read the rest
+ * what we expect
+ * this could be good because we can map it to the grammar
+ * nicely, like:
+ * "[" ATOM "]" / "," LIST
+ */
+let docker_of_line = (src:string, offset:int):t => {
+    let init = next(src, offset)
+    switch(init) {
+        | LComment(c, _, o) => Comment(c)
+        | LSymbol(cmd, _, o) when String.upper(cmd) == "CMD" => {
+            /*
+             * this is one way of handling that; it doesn't require me to
+             * maintain a state machine for each keyword, and also doesn't
+             * introduce a stateful requirement of knowing where we are in
+             * the lex stack or accidentally returning a keyword for a user
+             * command...
+             *
+             * it's definitely not my favorite tho
+             *
+             * so here, what we can do is next, see if we get a list
+             * start, if we do, call _get list_ and if not, call
+             * _get shell_. I definitely understand why the OCaml
+             * maintainer went the direction they did
+             */
+
+        }
+        | _ => {
+            Comment("unimplemented feature")
+        }
+    }
+}
 
 let string_of_docker = fun
     | Comment(c) => "# " ++ c
