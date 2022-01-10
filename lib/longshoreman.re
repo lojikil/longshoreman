@@ -4,7 +4,12 @@ type lex_t =
     | LSymbol(string, int, int)
     | LSet(string, string, int, int) /* something=somethingelse */
     | LVar(string, int, int)
-    | LArray(list(string), int, int)
+    | LCompoundVar(string, int, int) /* ${something...} */
+    | LArrayStart(int, int)
+    | LArrayEnd(int, int)
+    | LComma(int, int)
+    | LEOF(int)
+    | LError(string, int)
 
 type from_image = {
     platform:string,
@@ -94,8 +99,60 @@ let make_from_image = (~platform:string="", ~tag:string="", ~digest:string="",~n
     }
 }
 
-let next = (src:string, offset:int):lex_t => {
+let consume_line = (~escape:bool=false, src:string, offset:int):(string, int) => {
+    /*
+     * we want to read the whole rest of the line, and nothing else
+     * there is an analog for things that we want to allow to escape as well...
+     */
+    let int_c_l = (ioffset:int):(string, int) => {
+        switch(String.get(src, ioffset)) {
+            | '\n' => {
 
+            }
+            | '\\' when escape => int_c_l(ioffset + 2)
+            | _ => int_c_l(ioffset + 1)
+            | exception Invalid_argument(_) => {
+
+            }
+        }
+    }
+    int_c_l(offset)
+}
+
+let next = (src:string, offset:int):lex_t => {
+    let rec int_next = (state:int, offset:int):lex_t => {
+        switch(String.get(src, offset)) {
+            | c when iswhitespace(c) => int_next(state, offset + 1)
+            | '#' => {
+                /*
+                 * a comment, read the rest of the current line, return it
+                 * need to actually test these because they can include
+                 * syntactic directives, but not doing that just yet...
+                 */
+                let (cline, coffset) = consume_line(src, offset + 1)
+                LComment(cline, String.length(cline), coffset + 1)
+            }
+            | '$' => {
+
+            }
+            | '[' => {
+
+            }
+            | ']' => {
+
+            }
+            | '"' => {
+
+            }
+            | '\'' => {
+                /* need to ensure we're not parsing a JSON-style
+                 * object in here tho...
+                 */
+
+            }
+            | exception Invalid_argument(_) => LEOF(offset)
+        }
+    }
 }
 /*
  * I probably should use an expect-style system here to
@@ -125,6 +182,10 @@ let docker_of_line = (src:string, offset:int):t => {
              * start, if we do, call _get list_ and if not, call
              * _get shell_. I definitely understand why the OCaml
              * maintainer went the direction they did
+             *
+             * if you really think about it tho, we don't actually need
+             * to parse the rest of the line, we can just call a "get rest of line"
+             * function, that can break on newline or comment really
              */
 
         }
