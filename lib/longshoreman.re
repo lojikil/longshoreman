@@ -107,12 +107,12 @@ let consume_line = (~escape:bool=false, src:string, offset:int):(string, int) =>
     let int_c_l = (ioffset:int):(string, int) => {
         switch(String.get(src, ioffset)) {
             | '\n' => {
-
+                (String.sub(src, offset, (ioffset - offset)), ioffset + 1)
             }
             | '\\' when escape => int_c_l(ioffset + 2)
             | _ => int_c_l(ioffset + 1)
             | exception Invalid_argument(_) => {
-
+                (String.sub(src, offset, (ioffset - offset)), ioffset - 1)
             }
         }
     }
@@ -130,10 +130,10 @@ let next = (src:string, offset:int):lex_t => {
                  * syntactic directives, but not doing that just yet...
                  */
                 let (cline, coffset) = consume_line(src, offset + 1)
-                LComment(cline, String.length(cline), coffset + 1)
+                LComment(cline, String.length(cline), coffset)
             }
             | '$' => {
-
+                /* need consume variable and the like here, sorta like expect */
             }
             | '[' => {
 
