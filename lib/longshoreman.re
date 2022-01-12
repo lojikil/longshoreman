@@ -99,14 +99,14 @@ let make_from_image = (~platform:string="", ~tag:string="", ~digest:string="",~n
     }
 }
 
-let consume_line = (~escape:bool=false, src:string, offset:int):(string, int) => {
+let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset:int):(string, int) => {
     /*
      * we want to read the whole rest of the line, and nothing else
      * there is an analog for things that we want to allow to escape as well...
      */
-    let int_c_l = (ioffset:int):(string, int) => {
+    let rec int_c_l = (ioffset:int):(string, int) => {
         switch(String.get(src, ioffset)) {
-            | '\n' => {
+            | d when d == delimiter => {
                 (String.sub(src, offset, (ioffset - offset)), ioffset + 1)
             }
             | '\\' when escape => int_c_l(ioffset + 2)
@@ -136,13 +136,17 @@ let next = (src:string, offset:int):lex_t => {
                 /* need consume variable and the like here, sorta like expect */
             }
             | '[' => {
-
+                LArrayStart(1, offset + 1)
             }
             | ']' => {
-
+                LArrayEnd(1, offset + 1)
+            }
+            | ',' => {
+                LComma(1, offset + 1)
             }
             | '"' => {
-
+                let (s, o) = consume_line(~escape=true, ~delimiter='"', src, ioffset+1)
+                LString(s, String.length(s), o + 1)
             }
             | '\'' => {
                 /* need to ensure we're not parsing a JSON-style
