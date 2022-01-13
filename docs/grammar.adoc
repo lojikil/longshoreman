@@ -1,0 +1,8 @@
+== Weirdness
+
+According to hadolint, these are valid:
+
+. `+ARG 9=3+` and then `RUN echo "$9"`
+. `ARG s/f=3`, but then `RUN echo "${s/f}"` and `RUN echo $s/f` both fail (looking for `$s`)
+
+The grammar does appear to be underspecified for these, might be really interesting to fuzz the grammar...
