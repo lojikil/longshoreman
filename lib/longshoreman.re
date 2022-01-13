@@ -132,67 +132,65 @@ let consume_var = (src:string, offset:int):(string, int) => {
     ("", 0)
 }
 
-let next = (src:string, offset:int):lex_t => {
-    let rec int_next = (state:int, offset:int):lex_t => {
-        switch(String.get(src, offset)) {
-            | c when iswhitespace(c) => int_next(state, offset + 1)
-            | '#' => {
-                /*
-                 * a comment, read the rest of the current line, return it
-                 * need to actually test these because they can include
-                 * syntactic directives, but not doing that just yet...
-                 */
-                let (cline, coffset) = consume_line(src, offset + 1)
-                LComment(cline, String.length(cline), coffset)
-            }
-            | '$' => {
-                /* need consume variable and the like here, sorta like expect
-                 *
-                 * so, we could just add an explicit state above, but that
-                 * might complicate things here. I think a substate wouldn't
-                 * be terrible, considering that it is either:
-                 *
-                 * . '{' for a compound variable
-                 * . '[a-zA-Z]+' for a regular variable (as a starting char)
-                 * . an error of some kind
-                 */
-                switch(String.get(src, ioffset + 1)) {
-                    | '{' => {
-                        let (v, t, a, o) = consume_compound_var(src, ioffset + 2)
-                        LCompoundVar(v, t, a, String.length(v), o)
-                    }
-                    | n when is_alpha(n) || n == '_' => {
-                        let (v, o) = consume_var(src, ioffset + 1)
-                        LVar(v, String.length(v), o)
-                    }
-                    | _
-                    | exception Invalid_argument(_) => {
-                        LError(ioffset)
-                    }
+let rec next = (src:string, offset:int):lex_t => {
+    switch(String.get(src, offset)) {
+        | c when iswhitespace(c) => next(src, offset + 1)
+        | '#' => {
+            /*
+             * a comment, read the rest of the current line, return it
+             * need to actually test these because they can include
+             * syntactic directives, but not doing that just yet...
+             */
+            let (cline, coffset) = consume_line(src, offset + 1)
+            LComment(cline, String.length(cline), coffset)
+        }
+        | '$' => {
+            /* need consume variable and the like here, sorta like expect
+             *
+             * so, we could just add an explicit state above, but that
+             * might complicate things here. I think a substate wouldn't
+             * be terrible, considering that it is either:
+             *
+             * . '{' for a compound variable
+             * . '[a-zA-Z]+' for a regular variable (as a starting char)
+             * . an error of some kind
+             */
+            switch(String.get(src, ioffset + 1)) {
+                | '{' => {
+                    let (v, t, a, o) = consume_compound_var(src, ioffset + 2)
+                    LCompoundVar(v, t, a, String.length(v), o)
+                }
+                | n when is_alpha(n) || n == '_' => {
+                    let (v, o) = consume_var(src, ioffset + 1)
+                    LVar(v, String.length(v), o)
+                }
+                | _
+                | exception Invalid_argument(_) => {
+                    LError(ioffset)
                 }
             }
-            | '[' => {
-                LArrayStart(1, offset + 1)
-            }
-            | ']' => {
-                LArrayEnd(1, offset + 1)
-            }
-            | ',' => {
-                LComma(1, offset + 1)
-            }
-            | '"' => {
-                let (s, o) = consume_line(~escape=true, ~delimiter='"', src, ioffset+1)
-                LString(s, String.length(s), o + 1)
-            }
-            | '\'' => {
-                /* need to ensure we're not parsing a JSON-style
-                 * object in here tho...
-                 */
-                let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, ioffset+1)
-                LAString(s, String.length(s), o + 1)
-            }
-            | exception Invalid_argument(_) => LEOF(offset)
         }
+        | '[' => {
+            LArrayStart(1, offset + 1)
+        }
+        | ']' => {
+            LArrayEnd(1, offset + 1)
+        }
+        | ',' => {
+            LComma(1, offset + 1)
+        }
+        | '"' => {
+            let (s, o) = consume_line(~escape=true, ~delimiter='"', src, ioffset+1)
+            LString(s, String.length(s), o + 1)
+        }
+        | '\'' => {
+            /* need to ensure we're not parsing a JSON-style
+             * object in here tho...
+             */
+            let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, ioffset+1)
+            LAString(s, String.length(s), o + 1)
+        }
+        | exception Invalid_argument(_) => LEOF(offset)
     }
 }
 /*
