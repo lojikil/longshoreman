@@ -1,5 +1,6 @@
 type lex_t = 
     | LString(string, int, int)
+    | LAString(string, int, int)
     | LComment(string, int, int)
     | LSymbol(string, int, int)
     | LSet(string, string, int, int) /* something=somethingelse */
@@ -73,6 +74,10 @@ let is_break = (c:char):bool => {
     Char.compare(c, ',') == 0 || Char.compare(c, ':') == 0 || is_whitespace(c) || is_bracket(c)
 }
 
+let is_alpha = (c:char):bool => {
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
 let rec take_while_string = (src:string, start:int, offset:int, skip_escape:bool): lex_t => {
     switch(String.get(src, offset)) {
         | _ when skip_escape => take_while_string(src, start, offset + 1, false)
@@ -119,6 +124,14 @@ let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset
     int_c_l(offset)
 }
 
+let consume_compound_var = (src:string, offset:int):(string, string, string, int) => {
+    ("", "", "", offset + 1)
+}
+
+let consume_var = (src:string, offset:int):(string, int) => {
+    ("", 0)
+}
+
 let next = (src:string, offset:int):lex_t => {
     let rec int_next = (state:int, offset:int):lex_t => {
         switch(String.get(src, offset)) {
@@ -133,7 +146,30 @@ let next = (src:string, offset:int):lex_t => {
                 LComment(cline, String.length(cline), coffset)
             }
             | '$' => {
-                /* need consume variable and the like here, sorta like expect */
+                /* need consume variable and the like here, sorta like expect
+                 *
+                 * so, we could just add an explicit state above, but that
+                 * might complicate things here. I think a substate wouldn't
+                 * be terrible, considering that it is either:
+                 *
+                 * . '{' for a compound variable
+                 * . '[a-zA-Z]+' for a regular variable (as a starting char)
+                 * . an error of some kind
+                 */
+                switch(String.get(src, ioffset + 1)) {
+                    | '{' => {
+                        let (v, t, a, o) = consume_compound_var(src, ioffset + 2)
+                        LCompoundVar(v, t, a, String.length(v), o)
+                    }
+                    | n when is_alpha(n) || n == '_' => {
+                        let (v, o) = consume_var(src, ioffset + 1)
+                        LVar(v, String.length(v), o)
+                    }
+                    | _
+                    | exception Invalid_argument(_) => {
+                        LError(ioffset)
+                    }
+                }
             }
             | '[' => {
                 LArrayStart(1, offset + 1)
@@ -152,7 +188,8 @@ let next = (src:string, offset:int):lex_t => {
                 /* need to ensure we're not parsing a JSON-style
                  * object in here tho...
                  */
-
+                let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, ioffset+1)
+                LAString(s, String.length(s), o + 1)
             }
             | exception Invalid_argument(_) => LEOF(offset)
         }
