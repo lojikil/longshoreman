@@ -4,7 +4,7 @@ A simple Dockerfile parser written in ReasonML, and usable as both a library as 
 
 == Current status & usage:
 
-The library provides a function, `string_of_docker`, that can generate Dockerfile lines, although it cannot current round-trip.
+The library provides a function, `string_of_docker`, that can generate Dockerfile lines, although it cannot currently round-trip.
 
 [source,reasonml]
 ----
@@ -13,6 +13,10 @@ List.iter((x) => {
     print_endline(longshoreman,string_of_docker(x))
 }, src)
 ----
+
+Reading the https://docs.docker.com/engine/reference/builder/#format[Dockerfile specification], I don't know if I will actually
+support round tripping the code; instead, I'll probably focus on accurately parsing & canonicalizing, rather than round trip
+accuracy
 
 == License
 
