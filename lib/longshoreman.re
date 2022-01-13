@@ -128,13 +128,17 @@ let consume_compound_var = (src:string, offset:int):(string, string, string, int
     ("", "", "", offset + 1)
 }
 
-let consume_var = (src:string, offset:int):(string, int) => {
+let consume_symbol = (src:string, offset:int):(string, int) => {
     ("", 0)
 }
 
 let rec next = (src:string, offset:int):lex_t => {
     switch(String.get(src, offset)) {
         | c when iswhitespace(c) => next(src, offset + 1)
+        | a when is_alpha(a) => {
+            let (s, o) = consume_symbol(src, offset)
+            LSymbol(s, String.length(s), o)
+        }
         | '#' => {
             /*
              * a comment, read the rest of the current line, return it
@@ -161,7 +165,7 @@ let rec next = (src:string, offset:int):lex_t => {
                     LCompoundVar(v, t, a, String.length(v), o)
                 }
                 | n when is_alpha(n) || n == '_' => {
-                    let (v, o) = consume_var(src, ioffset + 1)
+                    let (v, o) = consume_symbol(src, ioffset + 1)
                     LVar(v, String.length(v), o)
                 }
                 | _
