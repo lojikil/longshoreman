@@ -125,11 +125,40 @@ let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset
 }
 
 let consume_compound_var = (src:string, offset:int):(string, string, string, int) => {
-    ("", "", "", offset + 1)
+    let rec inner_c_c_v = (ioffset:int):(string, int) {
+        switch((state, String.get(src, ioffset)) {
+            | (0, a) when is_symbolic(a) => {
+                /* start state */
+            }
+            | (0, '}') => {
+
+            }
+            | (0, ':') => {
+
+            }
+            | 1 => {
+
+            }
+        }
+    }
+    inner_c_c_v(0, offset)
 }
 
 let consume_symbol = (src:string, offset:int):(string, int) => {
-    ("", 0)
+    let rec inner_c_s = (ioffset:int):(string, int) => {
+        switch(String.get(src, ioffset)) {
+            | ws when is_whitespace(ws) => {
+                (String.sub(src, offset, (ioffset - offset)), ioffset + 1)
+            }
+            | _ => {
+                inner_c_s(ioffset + 1)
+            }
+            | exception Invalid_argument(_) => {
+                (String.sub(src, offset, (ioffset - offset)), ioffset + 1)
+            }
+        }
+    }
+    inner_c_s(offset + 1)
 }
 
 let rec next = (src:string, offset:int):lex_t => {
