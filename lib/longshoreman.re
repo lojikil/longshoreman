@@ -5,7 +5,7 @@ type lex_t =
     | LSymbol(string, int, int)
     | LSet(string, string, int, int) /* something=somethingelse */
     | LVar(string, int, int)
-    | LCompoundVar(string, int, int) /* ${something...} */
+    | LCompoundVar(string, string, string, int, int) /* ${something...} */
     | LArrayStart(int, int)
     | LArrayEnd(int, int)
     | LComma(int, int)
@@ -34,12 +34,12 @@ type t =
     | RunCommand(string)
     | RunExec(list(string))
     | CmdArray(list(string)) /* either exec form or arg list to ENTRYPOINT */
-    | CmdCommand(list(string))
+    | CmdCommand(string)
     | Env(list((string, string)))
     | Expose(list(int), list(string))
     | User(string)
     | Workdir(string)
-    | Label(list(string, string))
+    | Label(list((string, string)))
     | Shell(list(string))
     | Onbuild(t)
     | Maintainer(string)
@@ -81,7 +81,7 @@ let is_alpha = (c:char):bool => {
 let rec take_while_string = (src:string, start:int, offset:int, skip_escape:bool): lex_t => {
     switch(String.get(src, offset)) {
         | _ when skip_escape => take_while_string(src, start, offset + 1, false)
-        | n when n == '"' => LexString(String.sub(src, start + 1, offset - start - 1), start, offset + 1)
+        | n when n == '"' => LString(String.sub(src, start + 1, offset - start - 1), start, offset + 1)
         | e when e == '\\' => take_while_string(src, start, offset + 1, true)
         | _ => take_while_string(src, start, offset + 1, false)
     }
@@ -123,10 +123,10 @@ let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset
     }
     int_c_l(offset)
 }
-
 let consume_compound_var = (src:string, offset:int):(string, string, string, int) => {
-    let rec inner_c_c_v = (ioffset:int):(string, int) {
-        switch((state, String.get(src, ioffset)) {
+    /*
+    let rec inner_c_c_v = (state:int, ioffset:int):(string, int) => {
+        switch((state, String.get(src, ioffset))) {
             | (0, a) when is_symbolic(a) => {
                 /* start state */
             }
@@ -142,6 +142,11 @@ let consume_compound_var = (src:string, offset:int):(string, string, string, int
         }
     }
     inner_c_c_v(0, offset)
+    */
+    switch((src, offset)) {
+        | ("", _) => ("", "", "", offset + 1)
+        | (s, n) => (s, "", "", offset + n)
+    }
 }
 
 let consume_symbol = (src:string, offset:int):(string, int) => {
@@ -163,7 +168,7 @@ let consume_symbol = (src:string, offset:int):(string, int) => {
 
 let rec next = (src:string, offset:int):lex_t => {
     switch(String.get(src, offset)) {
-        | c when iswhitespace(c) => next(src, offset + 1)
+        | c when is_whitespace(c) => next(src, offset + 1)
         | a when is_alpha(a) => {
             let (s, o) = consume_symbol(src, offset)
             LSymbol(s, String.length(s), o)
@@ -188,18 +193,18 @@ let rec next = (src:string, offset:int):lex_t => {
              * . '[a-zA-Z]+' for a regular variable (as a starting char)
              * . an error of some kind
              */
-            switch(String.get(src, ioffset + 1)) {
+            switch(String.get(src, offset + 1)) {
                 | '{' => {
-                    let (v, t, a, o) = consume_compound_var(src, ioffset + 2)
+                    let (v, t, a, o) = consume_compound_var(src, offset + 2)
                     LCompoundVar(v, t, a, String.length(v), o)
                 }
                 | n when is_alpha(n) || n == '_' => {
-                    let (v, o) = consume_symbol(src, ioffset + 1)
+                    let (v, o) = consume_symbol(src, offset + 1)
                     LVar(v, String.length(v), o)
                 }
                 | _
                 | exception Invalid_argument(_) => {
-                    LError(ioffset)
+                    LError("", offset)
                 }
             }
         }
@@ -213,14 +218,14 @@ let rec next = (src:string, offset:int):lex_t => {
             LComma(1, offset + 1)
         }
         | '"' => {
-            let (s, o) = consume_line(~escape=true, ~delimiter='"', src, ioffset+1)
+            let (s, o) = consume_line(~escape=true, ~delimiter='"', src, offset+1)
             LString(s, String.length(s), o + 1)
         }
         | '\'' => {
             /* need to ensure we're not parsing a JSON-style
              * object in here tho...
              */
-            let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, ioffset+1)
+            let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, offset+1)
             LAString(s, String.length(s), o + 1)
         }
         | exception Invalid_argument(_) => LEOF(offset)
@@ -240,7 +245,7 @@ let docker_of_line = (src:string, offset:int):t => {
     let init = next(src, offset)
     switch(init) {
         | LComment(c, _, o) => Comment(c)
-        | LSymbol(cmd, _, o) when String.upper(cmd) == "CMD" => {
+        | LSymbol(cmd, _, o) when String.uppercase(cmd) == "CMD" => {
             /*
              * this is one way of handling that; it doesn't require me to
              * maintain a state machine for each keyword, and also doesn't
@@ -259,7 +264,14 @@ let docker_of_line = (src:string, offset:int):t => {
              * to parse the rest of the line, we can just call a "get rest of line"
              * function, that can break on newline or comment really
              */
-
+            switch(next(src, o)) {
+                | LString(s, _, _) => CmdCommand(s)
+                | LSymbol(_, _, _) => {
+                    let (v, o) = consume_line(src, o)
+                    CmdCommand(v)
+                }
+                | _ => Comment("not implemented")
+            }
         }
         | _ => {
             Comment("unimplemented feature")
