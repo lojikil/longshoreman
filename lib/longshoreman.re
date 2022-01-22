@@ -49,6 +49,7 @@ type t =
     | Add(string, list(string), string)
     | CopyList(string, list(string), string)
     | Copy(string, list(string), string)
+    | Error(string)
 
 /*
  * a dockerfile is just an ordered list of
@@ -56,6 +57,21 @@ type t =
  */
 
 type dockerfile = list(t)
+
+let string_of_lexeme = fun
+    | LString(s, _, _) => "LString(" ++ s ++ ")"
+    | LAString(s, _, _) => "LAString(" ++ s ++ ")"
+    | LComment(s, _, _) => "LComment(" ++ s ++ ")"
+    | LSymbol(s, _, _) => "LSymbol(" ++ s ++ ")"
+    | LSet(s, _, _, _) => "LSet(" ++ s ++ ")"
+    | LVar(s, _, _)  => "LVar(" ++ s ++ ")"
+    | LCompoundVar(s, _, _, _, _) => "LCompoundVar(" ++ s ++ ")"
+    | LArrayStart(_, _) => "LArrayStart()"
+    | LArrayEnd(_, _) => "LArrayEnd()"
+    | LComma(_, _) => "LComma()"
+    | LEOF(_) => "LEOF()"
+    | LError(s, _) => "LError(" ++ s ++ ")"
+
 
 let is_numeric = (c:char):bool => {
     let r = Char.compare('0', c);
@@ -219,7 +235,7 @@ let rec next = (src:string, offset:int):lex_t => {
         }
         | '"' => {
             let (s, o) = consume_line(~escape=true, ~delimiter='"', src, offset+1)
-            LString(s, String.length(s), o + 1)
+            LString(s, String.length(s), o)
         }
         | '\'' => {
             /* need to ensure we're not parsing a JSON-style
@@ -230,6 +246,36 @@ let rec next = (src:string, offset:int):lex_t => {
         }
         | exception Invalid_argument(_) => LEOF(offset)
     }
+}
+
+/*
+ * this really should return like an option or either here,
+ * with one side being the result of the build up and the
+ * other being an error...
+ */
+
+let consume_array = (src:string, offset:int):list(string) => {
+    /*
+     * so we want to build up a list of t, and return
+     * it, in a way that should be well formatted...
+     */
+    let rec inner_c_a = (res:list(string), state:int, offset:int):list(string) => {
+        let tok = next(src, offset)
+        switch((state, tok)) {
+            | (-1, LArrayStart(_, o)) => inner_c_a(res, 0, o)
+            | (0, LString(s, _, o)) => inner_c_a(List.append(res, [s]), 1, o)
+            | (_, LArrayEnd(_, _)) => res
+            //| (1, LComma(int, o)) => inner_c_a(res, 0, o)
+            // ^^^ should be an error, isn't caught...
+            | (1, LComma(_, o)) => inner_c_a(res, 0, o)
+            | _ => {
+                print_endline("state: " ++ string_of_int(state));
+                print_endline("token: " ++ string_of_lexeme(tok));
+                ["We really need to return an error here"]
+            }
+        }
+    }
+    inner_c_a([], -1, offset)
 }
 /*
  * I probably should use an expect-style system here to
@@ -245,7 +291,12 @@ let docker_of_line = (src:string, offset:int):t => {
     let init = next(src, offset)
     switch(init) {
         | LComment(c, _, o) => Comment(c)
-        | LSymbol(cmd, _, o) when String.uppercase(cmd) == "CMD" => {
+        /*
+         * this way is cleaner, but the problem is
+         * that the language doesn't _actually_ require
+         * that commands are upper case...
+         */
+        | LSymbol("CMD", _, o)  => {
             /*
              * this is one way of handling that; it doesn't require me to
              * maintain a state machine for each keyword, and also doesn't
@@ -266,11 +317,21 @@ let docker_of_line = (src:string, offset:int):t => {
              */
             switch(next(src, o)) {
                 | LString(s, _, _) => CmdCommand(s)
+                | LAString(las, _, _) => CmdCommand(las)
                 | LSymbol(_, _, _) => {
                     let (v, o) = consume_line(src, o)
                     CmdCommand(v)
                 }
+                | LArrayStart(_, _) => CmdArray(consume_array(src, o))
                 | _ => Comment("not implemented")
+            }
+        }
+        | LSymbol("USER", _, o) => {
+            let u = next(src, o)
+            switch(u) {
+                | LString(user, _, _) => User(user)
+                | LSymbol(usym, _, _) => User(usym)
+                | _ => Error("expected string or symbol after USER")
             }
         }
         | _ => {
