@@ -32,6 +32,16 @@ switch(d) {
 ----
 <1>: returns a `CMDArray` ADT
 
+Or, to show both:
+
+[source,reasonml]
+----
+let src = {|CMD ["/bin/ksh", "-c", "echo test this"]|};
+let res = docker_of_line(src);
+let roundtrip = string_of_docker(res);
+print_endline("does it round trip? " ++ string_of_bool(roundtrip == src))
+----
+
 == License
 
 ISC Licensed

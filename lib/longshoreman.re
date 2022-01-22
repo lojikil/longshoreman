@@ -73,7 +73,6 @@ let string_of_lexeme = fun
     | LEOF(_) => "LEOF()"
     | LError(s, _) => "LError(" ++ s ++ ")"
 
-
 let is_numeric = (c:char):bool => {
     let r = Char.compare('0', c);
     r >= -9 && r <= 0
@@ -292,6 +291,7 @@ let consume_array = (src:string, offset:int):list(string) => {
  * nicely, like:
  * "[" ATOM "]" / "," LIST
  */
+
 let docker_of_line = (src:string, offset:int):t => {
     let init = next(src, offset)
     switch(init) {
@@ -379,5 +379,10 @@ let string_of_docker = fun
     | Comment(c) => "# " ++ c
     | Arg(k, v) => "ARG " ++ k ++ "=" ++ v
     | RunCommand(rc) => "RUN " ++ rc
-    | RunExec(re) => "RUN [" ++ String.concat(" ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
+    | RunExec(re) => "RUN [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
+    | User(u) => "USER " ++ u
+    | Volume(v) => "VOLUME " ++ v
+    | Workdir(w) => "WORKDIR " ++ w
+    | CmdCommand(cmd) => "CMD " ++ cmd
+    | CmdArray(ca) => "CMD [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, ca)) ++ "]"
     | _ => "# unimplemented"
