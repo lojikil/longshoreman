@@ -49,6 +49,7 @@ type t =
     | Add(string, list(string), string)
     | CopyList(string, list(string), string)
     | Copy(string, list(string), string)
+    | Volume(string)
     | Error(string)
 
 /*
@@ -244,6 +245,10 @@ let rec next = (src:string, offset:int):lex_t => {
             let (s, o) = consume_line(~escape=true, ~delimiter='\'', src, offset+1)
             LAString(s, String.length(s), o + 1)
         }
+        | _ => {
+            let (s, o) = consume_symbol(src, offset)
+            LSymbol(s, String.length(s), o)
+        }
         | exception Invalid_argument(_) => LEOF(offset)
     }
 }
@@ -326,12 +331,42 @@ let docker_of_line = (src:string, offset:int):t => {
                 | _ => Comment("not implemented")
             }
         }
+        | LSymbol("RUN", _, o) => {
+            switch(next(src, o)) {
+                | LString(s, _, _) => RunCommand(s)
+                | LAString(las, _, _) => RunCommand(las)
+                | LSymbol(_, _, _) => {
+                    let (v, o) = consume_line(src, o)
+                    RunCommand(v)
+                }
+                | LArrayStart(_, _) => RunExec(consume_array(src, o))
+                | _ => Comment("not implemented")
+            }
+        }
         | LSymbol("USER", _, o) => {
             let u = next(src, o)
             switch(u) {
                 | LString(user, _, _) => User(user)
                 | LSymbol(usym, _, _) => User(usym)
                 | _ => Error("expected string or symbol after USER")
+            }
+        }
+        | LSymbol("WORKDIR", _, o) => {
+            let w = next(src, o)
+            switch(w) {
+                | LString(workdir, _, _) => Workdir(workdir)
+                | LAString(lawork, _, _) => Workdir(lawork)
+                | LSymbol(wsym, _, _) => Workdir(wsym)
+                | _ => Error("expected string or symbol after WORKDIR")
+            }
+        }
+        | LSymbol("VOLUME", _, o) => {
+            let v = next(src, o)
+            switch(v) {
+                | LString(workdir, _, _) => Volume(workdir)
+                | LAString(lawork, _, _) => Volume(lawork)
+                | LSymbol(wsym, _, _) => Volume(wsym)
+                | _ => Error("expected string or symbol after VOLUME")
             }
         }
         | _ => {
