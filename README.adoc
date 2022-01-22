@@ -22,7 +22,13 @@ Additionally, `docker_of_string` is provided to parse Docker lines into `t` obje
 
 [source,reasonml]
 ----
-let d = docker_of_line({|CMD ["/bin/sh" , "-c" , "echo test" ]|}, 0); <1>
+let d = docker_of_line({|CMD ["/bin/sh", "-c", "echo test"]|}, 0); <1>
+switch(d) {
+    | CMDArray(l) => {
+        List.iter((x) => print_endline("command exec arg: " ++ x), l)
+    }
+    | _ => print_endline("hmm, an error occurred; we expected a CMDArray, got: " ++ string_of_docker(d)) <2>
+}
 ----
 <1>: returns a `CMDArray` ADT
 
