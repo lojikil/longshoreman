@@ -6,3 +6,16 @@ According to hadolint, these are valid:
 . `ARG s/f=3`, but then `RUN echo "${s/f}"` and `RUN echo $s/f` both fail (looking for `$s`)
 
 The grammar does appear to be underspecified for these, might be really interesting to fuzz the grammar...
+
+== Idea on parsing many lines
+
+The library is pretty focused on atomic Dockerfile lines currenty; it's also agnostic as to
+requirements such as "only an `ARG` instruction may precede a `FROM` ". We can make this a little
+better tho:
+
+- `consume_line` for each line, figuring out if we should escape or not (is the first lexeme a comment?)
+- then just `List.map docker_of_line` for each, returning a `dockerfile` (`list(t)`) type
+
+It's relatively cheap, and allows us to know what "logical" (not physical) line we're on for each,
+without requiring much state from the parser. The downside is we have to do a quick look ahead at the
+next token, but that's not a *huge* deal
