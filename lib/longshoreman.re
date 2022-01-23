@@ -30,7 +30,7 @@ type from_image = {
 type t = 
     | Comment(string)
     | From(from_image)
-    | Arg(string, string)
+    | Arg(string, option(string))
     | RunCommand(string)
     | RunExec(list(string))
     | CmdArray(list(string)) /* either exec form or arg list to ENTRYPOINT */
@@ -369,6 +369,22 @@ let docker_of_line = (src:string, offset:int):t => {
                 | _ => Error("expected string or symbol after VOLUME")
             }
         }
+        | LSymbol("ARG", _, o) => {
+            let a = next(src, o)
+            switch(a) {
+                | LSymbol(asym, _, _) => {
+                    switch(String.index(asym, '=')) {
+                        | n => {
+                            Arg(String.sub(asym, 0, n), Some(String.sub(asym, n + 1, String.length(asym) - n - 1)))
+                        }
+                        | exception Not_found => {
+                            Arg(asym, None)
+                        }
+                    }
+                }
+                | _ => Error("expected symbol after ARG")
+            }
+        }
         | _ => {
             Comment("unimplemented feature")
         }
@@ -377,7 +393,12 @@ let docker_of_line = (src:string, offset:int):t => {
 
 let string_of_docker = fun
     | Comment(c) => "# " ++ c
-    | Arg(k, v) => "ARG " ++ k ++ "=" ++ v
+    | Arg(k, v) => {
+        switch(v) {
+            | Some(s) =>  "ARG " ++ k ++ "=" ++ s
+            | None => "ARG " ++ k
+        }
+    }
     | RunCommand(rc) => "RUN " ++ rc
     | RunExec(re) => "RUN [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
     | User(u) => "USER " ++ u
