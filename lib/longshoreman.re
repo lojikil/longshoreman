@@ -121,7 +121,28 @@ let make_from_image = (~platform:string="", ~tag:string="", ~digest:string="",~n
     }
 }
 
-let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset:int):(string, int) => {
+/*
+ * I have to think about how to detect comments. For example,
+ * this is obvious:
+ *
+ * [source]
+ * ----
+ * # This is a comment, you should ignore \
+ * # this will be a separate comment
+ * ----
+ *
+ * However, it gets tricky: we cannot mark *ALL* instances of
+ * '#' as a comment; to wit: `"this string contains a # character"`
+ * should not influence the consumption of lines...
+ *
+ * Maybe it *is* easier to just return a noisy version and
+ * have clean versions atop this?
+ */
+let consume_line = (~escape:bool=false,
+                    ~delimiter:char='\n',
+                    ~comment:bool=false,
+                    src:string,
+                    offset:int):(string, int) => {
     /*
      * we want to read the whole rest of the line, and nothing else
      * there is an analog for things that we want to allow to escape as well...
@@ -303,7 +324,10 @@ let consume_array = (src:string, offset:int):list(string) => {
  * to support tracking state
  */
 let consume_lines = (src:string):list(string) => {
-
+    let rec inner_c_ls = (offset:int):list(string) => {
+        let (res, v) = consume_line(~escape=true, src, offset)
+    }
+    inner_c_ls(0);
 }
 
 /*
