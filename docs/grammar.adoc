@@ -19,3 +19,9 @@ better tho:
 It's relatively cheap, and allows us to know what "logical" (not physical) line we're on for each,
 without requiring much state from the parser. The downside is we have to do a quick look ahead at the
 next token, but that's not a *huge* deal
+
+== Interesting note on `Dockerfiles` too
+
+So, https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#pipe-dockerfile-through-stdin[according to the docs],
+the `docker` command actually supports piping data from `stdin` or other locations. That's an interesting idea: don't actually
+*use* docker files, but rather generate them as needed from other things, and then run static analysis & what not on *those*.

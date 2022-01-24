@@ -50,6 +50,7 @@ type t =
     | CopyList(string, list(string), string)
     | Copy(string, list(string), string)
     | Volume(string)
+    | StopSignal(string)
     | Error(string)
 
 /*
@@ -124,6 +125,18 @@ let consume_line = (~escape:bool=false, ~delimiter:char='\n', src:string, offset
     /*
      * we want to read the whole rest of the line, and nothing else
      * there is an analog for things that we want to allow to escape as well...
+     *
+     * we need to also make sure that if we're in an in-line comment,
+     * that we don't consume the escaped line too...
+     * for example:
+     *
+     * [source]
+     * ----
+     * FROM debian # this comment shouldn't be continued \
+     * CMD ls
+     * ----
+     *
+     * Currently, this would smash the two lines together...
      */
     let rec int_c_l = (ioffset:int):(string, int) => {
         switch(String.get(src, ioffset)) {
@@ -281,6 +294,18 @@ let consume_array = (src:string, offset:int):list(string) => {
     }
     inner_c_a([], -1, offset)
 }
+
+/*
+ * given a `src` string, we slice up the string into
+ * _logical_ lines, rather than physical ones; this allows
+ * us to simply map `docker_of_line` over the result, rather
+ * than having to track a bunch of state or modify the above
+ * to support tracking state
+ */
+let consume_lines = (src:string):list(string) => {
+
+}
+
 /*
  * I probably should use an expect-style system here to
  * keep things a bit cleaner; at the tope level, we can
@@ -343,6 +368,12 @@ let docker_of_line = (src:string, offset:int):t => {
                 | _ => Comment("not implemented")
             }
         }
+        | LSymbol("SHELL", _, o) => {
+            switch(next(src, o)) {
+                | LArrayStart(_, _) =>  Shell(consume_array(src, o)) 
+                | _ => Error("SHELL *must* be followed by an array")
+            }
+        }
         | LSymbol("USER", _, o) => {
             let u = next(src, o)
             switch(u) {
@@ -367,6 +398,13 @@ let docker_of_line = (src:string, offset:int):t => {
                 | LAString(lawork, _, _) => Volume(lawork)
                 | LSymbol(wsym, _, _) => Volume(wsym)
                 | _ => Error("expected string or symbol after VOLUME")
+            }
+        }
+        | LSymbol("STOPSIGNAL", _, o) => {
+            let sig = next(src, o)
+            switch(sig) {
+                | LSymbol(sigsym, _, _) => StopSignal(sigsym)
+                | _ => Error("STOPSIGNAL expects a signal name/number")
             }
         }
         | LSymbol("ARG", _, o) => {
