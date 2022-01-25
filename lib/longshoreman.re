@@ -323,12 +323,14 @@ let consume_array = (src:string, offset:int):list(string) => {
  * than having to track a bunch of state or modify the above
  * to support tracking state
  */
+/*
 let consume_lines = (src:string):list(string) => {
     let rec inner_c_ls = (offset:int):list(string) => {
         let (res, v) = consume_line(~escape=true, src, offset)
     }
     inner_c_ls(0);
 }
+*/
 
 /*
  * I probably should use an expect-style system here to
@@ -425,13 +427,20 @@ let docker_of_line = (src:string, offset:int):t => {
             }
         }
         | LSymbol("STOPSIGNAL", _, o) => {
-            let sig = next(src, o)
-            switch(sig) {
+            let signal = next(src, o)
+            switch(signal) {
                 | LSymbol(sigsym, _, _) => StopSignal(sigsym)
                 | _ => Error("STOPSIGNAL expects a signal name/number")
             }
         }
         | LSymbol("ARG", _, o) => {
+            /*
+             * honestly, it seems better to just
+             * . consume-line here; ARG doesn't really care about what's going on
+             * . do the same in ENV, but attempt to suss out what's been added on the line
+             *
+             * I've been avoiding making a full AST thus far, but it's really tempting...
+             */
             let a = next(src, o)
             switch(a) {
                 | LSymbol(asym, _, _) => {

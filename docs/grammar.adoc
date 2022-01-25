@@ -25,3 +25,5 @@ next token, but that's not a *huge* deal
 So, https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#pipe-dockerfile-through-stdin[according to the docs],
 the `docker` command actually supports piping data from `stdin` or other locations. That's an interesting idea: don't actually
 *use* docker files, but rather generate them as needed from other things, and then run static analysis & what not on *those*.
+
+Additionally, https://github.com/hadolint/language-docker/blob/master/src/Language/Docker/Parser/Instruction.hs#L41[Hadolint has some nice ideas as well]
