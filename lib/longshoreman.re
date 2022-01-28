@@ -9,6 +9,7 @@ type lex_t =
     | LArrayStart(int, int)
     | LArrayEnd(int, int)
     | LComma(int, int)
+    | LEOL(int) /* end of line */
     | LEOF(int)
     | LError(string, int)
 
@@ -218,6 +219,7 @@ let consume_symbol = (src:string, offset:int):(string, int) => {
 
 let rec next = (src:string, offset:int):lex_t => {
     switch(String.get(src, offset)) {
+        | '\n' => LEOL(offset + 1)
         | c when is_whitespace(c) => next(src, offset + 1)
         | a when is_alpha(a) => {
             let (s, o) = consume_symbol(src, offset)
@@ -293,6 +295,30 @@ let rec next = (src:string, offset:int):lex_t => {
  */
 
 let consume_array = (src:string, offset:int):list(string) => {
+    /*
+     * so we want to build up a list of t, and return
+     * it, in a way that should be well formatted...
+     */
+    let rec inner_c_a = (res:list(string), state:int, offset:int):list(string) => {
+        let tok = next(src, offset)
+        switch((state, tok)) {
+            | (-1, LArrayStart(_, o)) => inner_c_a(res, 0, o)
+            | (0, LString(s, _, o)) => inner_c_a(List.append(res, [s]), 1, o)
+            | (_, LArrayEnd(_, _)) => res
+            //| (1, LComma(int, o)) => inner_c_a(res, 0, o)
+            // ^^^ should be an error, isn't caught...
+            | (1, LComma(_, o)) => inner_c_a(res, 0, o)
+            | _ => {
+                print_endline("state: " ++ string_of_int(state));
+                print_endline("token: " ++ string_of_lexeme(tok));
+                ["We really need to return an error here"]
+            }
+        }
+    }
+    inner_c_a([], -1, offset)
+}
+
+let consume_quoted_array = (src:string, offset:int):list(string) => {
     /*
      * so we want to build up a list of t, and return
      * it, in a way that should be well formatted...
