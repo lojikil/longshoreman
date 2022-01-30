@@ -9,7 +9,6 @@ type lex_t =
     | LArrayStart(int, int)
     | LArrayEnd(int, int)
     | LComma(int, int)
-    | LEOL(int) /* end of line */
     | LEOF(int)
     | LError(string, int)
 
@@ -36,7 +35,7 @@ type t =
     | RunExec(list(string))
     | CmdArray(list(string)) /* either exec form or arg list to ENTRYPOINT */
     | CmdCommand(string)
-    | Env(list((string, string)))
+    | Env(string)
     | Expose(list(int), list(string))
     | User(string)
     | Workdir(string)
@@ -46,7 +45,7 @@ type t =
     | Maintainer(string)
     | EntrypointCommand(string)
     | EntrypointExec(list(string))
-    | AddList(string, list(string), string)
+    | AddList(string, list(string), string) /* these all have an optional "--chown" first */
     | Add(string, list(string), string)
     | CopyList(string, list(string), string)
     | Copy(string, list(string), string)
@@ -219,7 +218,6 @@ let consume_symbol = (src:string, offset:int):(string, int) => {
 
 let rec next = (src:string, offset:int):lex_t => {
     switch(String.get(src, offset)) {
-        | '\n' => LEOL(offset + 1)
         | c when is_whitespace(c) => next(src, offset + 1)
         | a when is_alpha(a) => {
             let (s, o) = consume_symbol(src, offset)
@@ -317,46 +315,6 @@ let consume_array = (src:string, offset:int):list(string) => {
     }
     inner_c_a([], -1, offset)
 }
-
-let consume_quoted_array = (src:string, offset:int):list(string) => {
-    /*
-     * so we want to build up a list of t, and return
-     * it, in a way that should be well formatted...
-     */
-    let rec inner_c_a = (res:list(string), state:int, offset:int):list(string) => {
-        let tok = next(src, offset)
-        switch((state, tok)) {
-            | (-1, LArrayStart(_, o)) => inner_c_a(res, 0, o)
-            | (0, LString(s, _, o)) => inner_c_a(List.append(res, [s]), 1, o)
-            | (_, LArrayEnd(_, _)) => res
-            //| (1, LComma(int, o)) => inner_c_a(res, 0, o)
-            // ^^^ should be an error, isn't caught...
-            | (1, LComma(_, o)) => inner_c_a(res, 0, o)
-            | _ => {
-                print_endline("state: " ++ string_of_int(state));
-                print_endline("token: " ++ string_of_lexeme(tok));
-                ["We really need to return an error here"]
-            }
-        }
-    }
-    inner_c_a([], -1, offset)
-}
-
-/*
- * given a `src` string, we slice up the string into
- * _logical_ lines, rather than physical ones; this allows
- * us to simply map `docker_of_line` over the result, rather
- * than having to track a bunch of state or modify the above
- * to support tracking state
- */
-/*
-let consume_lines = (src:string):list(string) => {
-    let rec inner_c_ls = (offset:int):list(string) => {
-        let (res, v) = consume_line(~escape=true, src, offset)
-    }
-    inner_c_ls(0);
-}
-*/
 
 /*
  * I probably should use an expect-style system here to
@@ -482,6 +440,10 @@ let docker_of_line = (src:string, offset:int):t => {
                 | _ => Error("expected symbol after ARG")
             }
         }
+        | LSymbol("ENV", _, o) => {
+            let (env_val, o1) = consume_line(~escape=true, src, o)
+            Env(env_val)
+        }
         | _ => {
             Comment("unimplemented feature")
         }
@@ -495,6 +457,9 @@ let string_of_docker = fun
             | Some(s) =>  "ARG " ++ k ++ "=" ++ s
             | None => "ARG " ++ k
         }
+    }
+    | Env(s) => {
+        "ENV " ++ s
     }
     | RunCommand(rc) => "RUN " ++ rc
     | RunExec(re) => "RUN [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
