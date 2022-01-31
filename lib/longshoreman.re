@@ -9,6 +9,7 @@ type lex_t =
     | LArrayStart(int, int)
     | LArrayEnd(int, int)
     | LComma(int, int)
+    | LEOL(int, int)
     | LEOF(int)
     | LError(string, int)
 
@@ -71,6 +72,7 @@ let string_of_lexeme = fun
     | LArrayStart(_, _) => "LArrayStart()"
     | LArrayEnd(_, _) => "LArrayEnd()"
     | LComma(_, _) => "LComma()"
+    | LEOL(_, _) => "LEOL()"
     | LEOF(_) => "LEOF()"
     | LError(s, _) => "LError(" ++ s ++ ")"
 
@@ -173,6 +175,7 @@ let consume_line = (~escape:bool=false,
     }
     int_c_l(offset)
 }
+
 let consume_compound_var = (src:string, offset:int):(string, string, string, int) => {
     /*
     let rec inner_c_c_v = (state:int, ioffset:int):(string, int) => {
@@ -218,6 +221,8 @@ let consume_symbol = (src:string, offset:int):(string, int) => {
 
 let rec next = (src:string, offset:int):lex_t => {
     switch(String.get(src, offset)) {
+        | '\\' => next(src, offset + 2)
+        | '\n' => LEOL(1, offset + 1)
         | c when is_whitespace(c) => next(src, offset + 1)
         | a when is_alpha(a) => {
             let (s, o) = consume_symbol(src, offset)
@@ -443,6 +448,26 @@ let docker_of_line = (src:string, offset:int):t => {
         | LSymbol("ENV", _, o) => {
             let (env_val, o1) = consume_line(~escape=true, src, o)
             Env(env_val)
+        }
+        | LSymbol("ADD", _, o) => {
+            let s = next(s, o)
+            /*
+             * so what we really want is:
+             * . optional `--chown=...`
+             * . either a list of values until EOL
+             * . or a bounded array
+             *
+             * this is where really nice monadic solutions come out
+             * on top, because you can sorta optionally read and return;
+             * I could do the same here, like "arg or array start or list"
+             * really, that wouldn't be terrible...
+             */
+            switch(s) {
+                | ch when String.get(s, 0) == '-' => {
+
+                }
+                | LSymbol(
+            }
         }
         | _ => {
             Comment("unimplemented feature")
