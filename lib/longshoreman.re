@@ -337,6 +337,29 @@ let consume_array = (src:string, offset:int):list(string) => {
     inner_c_a([], -1, offset)
 }
 
+let consume_quoted_array = (src:string, offset:int):list(string) => {
+    /*
+     * so we want to build up a list of t, and return
+     * it, in a way that should be well formatted...
+     */
+    let rec inner_c_a = (res:list(string), offset:int):list(string) => {
+        let tok = next(src, offset)
+        switch(tok) {
+            | LString(s, _, o) => inner_c_a(List.append(res, [s]), o)
+            | LSymbol(s, _, o) => inner_c_a(List.append(res, [s]), o)
+            | LEOF(_)
+            | LEOL(_, _) => res
+            //| (1, LComma(int, o)) => inner_c_a(res, 0, o)
+            // ^^^ should be an error, isn't caught...
+            | _ => {
+                print_endline("token: " ++ string_of_lexeme(tok));
+                ["We really need to return an error here"]
+            }
+        }
+    }
+    inner_c_a([], offset)
+}
+
 /*
  * I probably should use an expect-style system here to
  * keep things a bit cleaner; at the tope level, we can
@@ -466,7 +489,7 @@ let docker_of_line = (src:string, offset:int):t => {
             Env(env_val)
         }
         | LSymbol("ADD", _, o) => {
-            let s = next(s, o)
+            let s = next(src, o)
             /*
              * so what we really want is:
              * . optional `--chown=...`
@@ -486,33 +509,95 @@ let docker_of_line = (src:string, offset:int):t => {
                     let ns = next(src, no)
                     switch(ns) {
                         | LSymbol(_, _, _) => {
-                            let (res, no) = consume_quoted_array(src, o);
+                            let res = consume_quoted_array(src, no);
                             let add_list = butlast(res);
                             let dest = last(res);
                             Add(ch, add_list, dest)
                         }
                         | LArrayStart(_, _) => {
-                            let (res, no) = consume_array(src, o);
+                            let res = consume_array(src, no);
                             let add_list = butlast(res);
                             let dest = last(res);
                             AddList(ch, add_list, dest)
                         }
+                        | _ => {
+                            Error("Mismatched type in ADD")
+                        }
                     }
                 }
                 | LSymbol(_, _, _) => {
-                    let (res, no) = consume_quoted_array(src, o);
+                    let res = consume_quoted_array(src, o);
                     let add_list = butlast(res);
                     let dest = last(res);
                     Add("", add_list, dest)
                 }
                 | LArrayStart(_, _) => {
-                    let (res, no) = consume_array(src, o);
+                    let res = consume_array(src, o);
                     let add_list = butlast(res);
                     let dest = last(res);
                     AddList("", add_list, dest)
                 }
+                | _ => Error("unexpected type in ADD")
             }
-        }
+        }  
+        | LSymbol("COPY", _, o) => {
+            /* again, a monadic interface here that
+             * captured state of where we are, and then
+             * what we should do next would be great, esp
+             * because it would completely eliminate this
+             * code duplication below...
+             */
+            let s = next(src, o)
+            /*
+             * so what we really want is:
+             * . optional `--chown=...`
+             * . either a list of values until EOL
+             * . or a bounded array
+             *
+             * this is where really nice monadic solutions come out
+             * on top, because you can sorta optionally read and return;
+             * I could do the same here, like "arg or array start or list"
+             * really, that wouldn't be terrible...
+             */
+            switch(s) {
+                | LSymbol(ch, _, no) when String.get(ch, 0) == '-' => {
+                    /*
+                     * we have a chown here...
+                     */
+                    let ns = next(src, no)
+                    switch(ns) {
+                        | LSymbol(_, _, _) => {
+                            let res = consume_quoted_array(src, no);
+                            let add_list = butlast(res);
+                            let dest = last(res);
+                            Copy(ch, add_list, dest)
+                        }
+                        | LArrayStart(_, _) => {
+                            let res = consume_array(src, no);
+                            let add_list = butlast(res);
+                            let dest = last(res);
+                            CopyList(ch, add_list, dest)
+                        }
+                        | _ => {
+                            Error("Mismatched type in COPY")
+                        }
+                    }
+                }
+                | LSymbol(_, _, _) => {
+                    let res = consume_quoted_array(src, o);
+                    let add_list = butlast(res);
+                    let dest = last(res);
+                    Copy("", add_list, dest)
+                }
+                | LArrayStart(_, _) => {
+                    let res = consume_array(src, o);
+                    let add_list = butlast(res);
+                    let dest = last(res);
+                    CopyList("", add_list, dest)
+                }
+                | _ => Error("unexpected type in COPY")
+            }
+        }  
         | _ => {
             Comment("unimplemented feature")
         }
