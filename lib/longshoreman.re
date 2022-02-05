@@ -123,6 +123,22 @@ let make_from_image = (~platform:string="", ~tag:string="", ~digest:string="",~n
     }
 }
 
+let last = (src:list('a)):'a => {
+    let l = List.length(src)
+    List.nth(src, l - 1)
+}
+
+let butlast = (src:list('a)):list('a) => {
+    /* would have been easy with a takewhileindex...
+     * also would be easy as a tail recursive function
+     * with an optional arg...
+     */
+    let l = List.length(src);
+    let res = ref([])
+    List.iteri((idx, x) => { if(idx < (l - 1)) { res := List.append(res^, [x]); } else { () } }, src);
+    res^;
+};
+
 /*
  * I have to think about how to detect comments. For example,
  * this is obvious:
@@ -463,10 +479,38 @@ let docker_of_line = (src:string, offset:int):t => {
              * really, that wouldn't be terrible...
              */
             switch(s) {
-                | ch when String.get(s, 0) == '-' => {
-
+                | LSymbol(ch, _, no) when String.get(ch, 0) == '-' => {
+                    /*
+                     * we have a chown here...
+                     */
+                    let ns = next(src, no)
+                    switch(ns) {
+                        | LSymbol(_, _, _) => {
+                            let (res, no) = consume_quoted_array(src, o);
+                            let add_list = butlast(res);
+                            let dest = last(res);
+                            Add(ch, add_list, dest)
+                        }
+                        | LArrayStart(_, _) => {
+                            let (res, no) = consume_array(src, o);
+                            let add_list = butlast(res);
+                            let dest = last(res);
+                            AddList(ch, add_list, dest)
+                        }
+                    }
                 }
-                | LSymbol(
+                | LSymbol(_, _, _) => {
+                    let (res, no) = consume_quoted_array(src, o);
+                    let add_list = butlast(res);
+                    let dest = last(res);
+                    Add("", add_list, dest)
+                }
+                | LArrayStart(_, _) => {
+                    let (res, no) = consume_array(src, o);
+                    let add_list = butlast(res);
+                    let dest = last(res);
+                    AddList("", add_list, dest)
+                }
             }
         }
         | _ => {
