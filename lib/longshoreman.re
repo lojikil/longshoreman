@@ -615,8 +615,13 @@ let string_of_docker = fun
     | Env(s) => {
         "ENV " ++ s
     }
+    | Copy(chown, al, d) => "COPY " ++ chown ++ " " ++ String.concat(" ", al) ++ " " ++ d
+    | CopyList(chown, al, d) => "COPY " ++ chown ++ " [" ++ String.concat(" ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, al)) ++ ", " ++ String.escaped(d) ++ "]"
+    | Add(chown, al, d) => "ADD " ++ chown ++ " " ++ String.concat(" ", al) ++ " " ++ d
+    | AddList(chown, al, d) => "ADD " ++ chown ++ " [" ++ String.concat(" ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, al)) ++ ", " ++ String.escaped(d) ++ "]"
     | RunCommand(rc) => "RUN " ++ rc
     | RunExec(re) => "RUN [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
+    | Shell(re) => "SHELL [" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, re)) ++ "]"
     | User(u) => "USER " ++ u
     | Volume(v) => "VOLUME " ++ v
     | Workdir(w) => "WORKDIR " ++ w
