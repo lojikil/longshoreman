@@ -380,6 +380,10 @@ let docker_of_line = (src:string, offset:int):t => {
          * that the language doesn't _actually_ require
          * that commands are upper case...
          */
+        /*| LSymbol("FROM", _, o) => {
+            let (members, no) = build_from(src, o)
+            From(members)
+        }*/
         | LSymbol("CMD", _, o)  => {
             /*
              * this is one way of handling that; it doesn't require me to
@@ -419,6 +423,18 @@ let docker_of_line = (src:string, offset:int):t => {
                     RunCommand(v)
                 }
                 | LArrayStart(_, _) => RunExec(consume_array(src, o))
+                | _ => Comment("not implemented")
+            }
+        }
+        | LSymbol("ENTRYPOINT", _, o) => {
+            switch(next(src, o)) {
+                | LString(s, _, _) => EntrypointCommand(s)
+                | LAString(las, _, _) => EntrypointCommand(las)
+                | LSymbol(_, _, _) => {
+                    let (v, o) = consume_line(src, o)
+                    EntrypointCommand(v)
+                }
+                | LArrayStart(_, _) => EntrypointExec(consume_array(src, o))
                 | _ => Comment("not implemented")
             }
         }
