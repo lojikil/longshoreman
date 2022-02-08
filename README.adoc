@@ -42,6 +42,21 @@ let roundtrip = string_of_docker(res);
 print_endline("does it round trip? " ++ string_of_bool(roundtrip == src))
 ----
 
+Currently, processing a Dockerfile is a slightly delicate effort, but if you have the file sliced into logical lines,
+you can parse it via:
+
+[source,reasonml]
+----
+#use "longshoreman.re";
+let lines = ["FROM gcr.io/fuzzbench/base-image",
+"ENV WORK /work",
+"ENV SRC $WORK/src",
+"RUN mkdir -p $SRC",
+"ADD . $SRC/",
+"ENTRYPOINT /bin/bash $SRC/docker/worker/startup-worker.sh"];
+let dockerfile = List.map(docker_of_line(_, 0), lines);
+----
+
 == License
 
 ISC Licensed

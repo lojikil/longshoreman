@@ -347,6 +347,7 @@ let consume_quoted_array = (src:string, offset:int):list(string) => {
         switch(tok) {
             | LString(s, _, o) => inner_c_a(List.append(res, [s]), o)
             | LSymbol(s, _, o) => inner_c_a(List.append(res, [s]), o)
+            | LVar(v, _, o) => inner_c_a(List.append(res, ["$" ++ v]), o)
             | LEOF(_)
             | LEOL(_, _) => res
             //| (1, LComma(int, o)) => inner_c_a(res, 0, o)
