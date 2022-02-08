@@ -375,6 +375,16 @@ let extract_name = (n:string):(string, string, string) => {
     }
 }
 
+let string_of_image = (src:from_image):string => {
+    let {platform,image,tag,digest,name} = src;
+    let imagename = switch((tag,digest)) {
+        | ("", "") => image
+        | (t, "") => image ++ ":" ++ t
+        | (_, d) => image ++ "@" ++ d
+    }
+    let asname = if(name == "") { "" } else { "AS " ++ name }
+    platform ++ imagename ++ asname
+}
 
 let build_from = (src:string, offset:int):from_image => {
     let l = consume_quoted_array(src, offset)
@@ -394,6 +404,9 @@ let build_from = (src:string, offset:int):from_image => {
         | [p, n, "AS", nm] => {
             let (name, tag, digest) = extract_name(n)
             make_from_image(~platform=p, ~tag=tag, ~digest=digest, ~name=nm, name)
+        }
+        | _ => {
+            make_from_image(String.concat(" ", l))
         }
     }
 }
@@ -660,6 +673,9 @@ let docker_of_line = (src:string, offset:int):t => {
 
 let string_of_docker = fun
     | Comment(c) => "# " ++ c
+    | From(f) => "FROM " ++ string_of_image(f)
+    | EntrypointCommand(e) => "ENTRYPOINT " ++ e
+    | EntrypointExec(ee) => "ENTRYPOINT " ++ "[" ++ String.concat(", ", List.map((x) => { "\"" ++ String.escaped(x) ++ "\"" }, ee)) ++ "]"
     | Arg(k, v) => {
         switch(v) {
             | Some(s) =>  "ARG " ++ k ++ "=" ++ s
