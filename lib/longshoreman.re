@@ -360,6 +360,44 @@ let consume_quoted_array = (src:string, offset:int):list(string) => {
     inner_c_a([], offset)
 }
 
+let safe_index = (src:string, needle:char):int => {
+    switch(String.index(src, needle)) {
+        | n => n
+        | exception Not_found => -1
+    }
+}
+
+let extract_name = (n:string):(string, string, string) => {
+    switch((safe_index(n, '@'), safe_index(n, ':'))) {
+        | (-1, -1) => (n, "", "")
+        | (-1, m) => (String.sub(n, 0, m), String.sub(n, m + 1, String.length(n) - m - 1), "")
+        | (a, _) => (String.sub(n, 0, a), "", String.sub(n, a + 1, String.length(n) - a - 1))
+    }
+}
+
+
+let build_from = (src:string, offset:int):from_image => {
+    let l = consume_quoted_array(src, offset)
+    switch(l) {
+        | [n] => {
+            let (name, tag, digest) = extract_name(n)
+            make_from_image(~tag=tag, ~digest=digest, name)
+        }
+        | [p, n] => {
+            let (name, tag, digest) = extract_name(n)
+            make_from_image(~platform=p, ~tag=tag, ~digest=digest, name)
+        }
+        | [n, "AS", nm] => {
+            let (name, tag, digest) = extract_name(n)
+            make_from_image(~tag=tag, ~digest=digest, ~name=nm, name)
+        }
+        | [p, n, "AS", nm] => {
+            let (name, tag, digest) = extract_name(n)
+            make_from_image(~platform=p, ~tag=tag, ~digest=digest, ~name=nm, name)
+        }
+    }
+}
+
 /*
  * I probably should use an expect-style system here to
  * keep things a bit cleaner; at the tope level, we can
@@ -380,10 +418,10 @@ let docker_of_line = (src:string, offset:int):t => {
          * that the language doesn't _actually_ require
          * that commands are upper case...
          */
-        /*| LSymbol("FROM", _, o) => {
-            let (members, no) = build_from(src, o)
+        | LSymbol("FROM", _, o) => {
+            let members = build_from(src, o)
             From(members)
-        }*/
+        }
         | LSymbol("CMD", _, o)  => {
             /*
              * this is one way of handling that; it doesn't require me to
