@@ -20,6 +20,13 @@ It's relatively cheap, and allows us to know what "logical" (not physical) line 
 without requiring much state from the parser. The downside is we have to do a quick look ahead at the
 next token, but that's not a *huge* deal
 
+=== Update
+
+So I had initially abandoned the above because it appeared like it has too many edge cases, but reading
+through what Docker themselves did, it does appear like they have a similar process:
+
+https://github.com/moby/buildkit/blob/master/frontend/dockerfile/parser/parser.go#L297[Dockerfile Parser]
+
 == Interesting note on `Dockerfiles` too
 
 So, https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#pipe-dockerfile-through-stdin[according to the docs],
