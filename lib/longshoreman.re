@@ -110,6 +110,7 @@ let rec take_until_not_white = (src:string, offset:int):int => {
     switch(String.get(src, offset)) {
         | n when is_whitespace(n) => take_until_not_white(src, offset + 1)
         | _ => offset
+        | exception Invalid_argument(_) => offset
     }
 }
 
@@ -260,7 +261,8 @@ let consume_lines = (src:string):list(string) => {
                  * that changes the escape character?
                  *
                  * XXX: this is currently broken for escaped lines for some reason
-                 * need to fix...
+                 * need to fix... actually not broken here?
+                 *
                  */
                 let (line, new_offset) = consume_line(~escape=true, src, n)
                 inner_cls(List.append(res, [line]), new_offset)
@@ -507,7 +509,7 @@ let docker_of_line = (src:string, offset:int):t => {
                 | LString(s, _, _) => RunCommand(s)
                 | LAString(las, _, _) => RunCommand(las)
                 | LSymbol(_, _, _) => {
-                    let (v, o) = consume_line(src, o)
+                    let (v, o) = consume_line(~escape=true, src, o)
                     RunCommand(v)
                 }
                 | LArrayStart(_, _) => RunExec(consume_array(src, o))
