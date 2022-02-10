@@ -59,7 +59,7 @@ type t =
  * docker entries
  */
 
-type dockerfile = list(t)
+/*type dockerfile = list(t)*/
 
 let string_of_lexeme = fun
     | LString(s, _, _) => "LString(" ++ s ++ ")"
@@ -233,6 +233,42 @@ let consume_symbol = (src:string, offset:int):(string, int) => {
         }
     }
     inner_c_s(offset + 1)
+}
+
+/*
+ * back on my nonsense; contextually slice up lines and return
+ * a list of logical lines that need to be processed together
+ */
+let consume_lines = (src:string):list(string) => {
+    let rec inner_cls = (res:list(string), offset:int):list(string) => {
+        let n = take_until_not_white(src, offset)
+        switch(String.get(src, n)) {
+            | '#' => {
+                let (line, new_offset) = consume_line(src, n)
+                inner_cls(List.append(res, [line]), new_offset)
+            }
+            | _ when offset == (String.length(src) - 1) => {
+                /*
+                 * HACK: this is a work around for the fact that
+                 * consume_line doesn't delineate between a blank
+                 * line and end of file/string.
+                 */
+                res
+            }
+            | _ => {
+                /* TODO: one issue: how to support when there's a parser directive
+                 * that changes the escape character?
+                 *
+                 * XXX: this is currently broken for escaped lines for some reason
+                 * need to fix...
+                 */
+                let (line, new_offset) = consume_line(~escape=true, src, n)
+                inner_cls(List.append(res, [line]), new_offset)
+            }
+            | exception Invalid_argument(_) => res
+        }
+    }
+    inner_cls([], 0)
 }
 
 let rec next = (src:string, offset:int):lex_t => {
@@ -670,6 +706,10 @@ let docker_of_line = (src:string, offset:int):t => {
             Comment("unimplemented feature")
         }
     }
+}
+
+let dockerfile_of_string = (src:string):list(t) => {
+    consume_lines(src) |> List.map((x) => { docker_of_line(x, 0) }, _)
 }
 
 let string_of_docker = fun

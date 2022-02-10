@@ -57,6 +57,23 @@ let lines = ["FROM gcr.io/fuzzbench/base-image",
 let dockerfile = List.map(docker_of_line(_, 0), lines);
 ----
 
+Lastly, `dockerfile_of_string` can slice up a string containing multiple docker statements:
+
+[source,reasonml]
+----
+#use "longshoreman.re";
+let src = {|FROM gcr.io/fuzzbench/base-image
+
+ENV WORK /work
+ENV SRC $WORK/src
+RUN mkdir -p $SRC
+
+ADD . $SRC/
+
+ENTRYPOINT /bin/bash $SRC/docker/worker/startup-worker.sh|};
+let dockerfile = dockerfile_of_string(src)
+----
+
 == License
 
 ISC Licensed
