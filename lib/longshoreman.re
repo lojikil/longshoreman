@@ -497,7 +497,10 @@ let docker_of_line = (src:string, offset:int):t => {
                 | LString(s, _, _) => CmdCommand(s)
                 | LAString(las, _, _) => CmdCommand(las)
                 | LSymbol(_, _, _) => {
-                    let (v, o) = consume_line(src, o)
+                    /*
+                     * TODO: would this be better as `consume_quoted_array`?
+                     */
+                    let (v, o) = consume_line(~escape=true, src, o)
                     CmdCommand(v)
                 }
                 | LArrayStart(_, _) => CmdArray(consume_array(src, o))
@@ -521,7 +524,7 @@ let docker_of_line = (src:string, offset:int):t => {
                 | LString(s, _, _) => EntrypointCommand(s)
                 | LAString(las, _, _) => EntrypointCommand(las)
                 | LSymbol(_, _, _) => {
-                    let (v, o) = consume_line(src, o)
+                    let (v, o) = consume_line(~escape=true, src, o)
                     EntrypointCommand(v)
                 }
                 | LArrayStart(_, _) => EntrypointExec(consume_array(src, o))
